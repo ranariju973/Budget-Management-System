@@ -1,22 +1,6 @@
 # Budget Management Web App
 
 A complete budget management application built with React frontend and Node.js backend, allowing users to track their monthly income, expenses, and borrowings.
-
-## 🚀 Features
-
-### Authentication
-- User registration and login
-- JWT-based authentication
-- Password validation with security requirements
-- Protected routes
-
-### Budget Management
-- Create monthly budgets with income tracking
-- Visual dashboard with budget overview
-- Multi-budget support (different months/years)
-
-### Expense Tracking
-- Add, edit, and delete expenses
 - Categorized expenses (Food, Transportation, Bills, etc.)
 - Date-based tracking with notes
 - Visual expense breakdown with pie charts
@@ -324,4 +308,9 @@ This project is licensed under the MIT License.
 4. Use MongoDB Compass to inspect database data
 5. Test API endpoints with tools like Postman or Insomnia
 
+```markdown
+
 For more help, please open an issue in the repository.
+=======
+# Budget-Management-System
+>>>>>>> fcb041baf263600ea84913d1a5dd18d519dc45e8
