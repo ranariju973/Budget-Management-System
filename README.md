@@ -60,21 +60,6 @@ A complete budget management application built with React frontend and Node.js b
    cd backend
    npm install
    ```
-   
-   Create `.env` file:
-   ```bash
-   cp .env.example .env
-   ```
-   
-   Update the `.env` file with your configuration:
-   ```env
-   MONGODB_URI=mongodb://localhost:27017/budget_management
-   JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
-   JWT_EXPIRES_IN=7d
-   FRONTEND_URL=http://localhost:5173
-   NODE_ENV=development
-   PORT=5000
-   ```
 
 3. **Frontend Setup**
    ```bash
