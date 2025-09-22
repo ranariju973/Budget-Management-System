@@ -22,6 +22,7 @@ import LoadingSpinner from '../components/ui/LoadingSpinner';
 import Modal from '../components/ui/Modal';
 import EmptyState from '../components/ui/EmptyState';
 import { useForm } from 'react-hook-form';
+import useBreakpoint from '../hooks/useBreakpoint';
 
 const COLORS = ['#3b82f6', '#ef4444', '#f59e0b', '#10b981', '#8b5cf6', '#f97316', '#06b6d4', '#84cc16'];
 
@@ -41,6 +42,7 @@ const CATEGORIES = [
 ];
 
 const BudgetDetail = () => {
+  const { isMobile } = useBreakpoint();
   const { id } = useParams();
   const [budget, setBudget] = useState(null);
   const [summary, setSummary] = useState(null);
@@ -984,7 +986,7 @@ const BudgetDetail = () => {
 
         {/* Chart Section */}
         <div className="lg:col-span-1">
-          <h2 className="text-xl font-semibold text-gray-900 mb-6">Expense Breakdown</h2>
+          <h2 className="heading-md text-gray-900 mb-4 sm:mb-6">Expense Breakdown</h2>
           <div className="card">
             {chartData.length === 0 ? (
               <EmptyState
@@ -994,15 +996,15 @@ const BudgetDetail = () => {
               />
             ) : (
               <>
-                <div className="h-64">
+                <div className="h-48 sm:h-56 md:h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
                         data={chartData}
                         cx="50%"
                         cy="50%"
-                        innerRadius={40}
-                        outerRadius={80}
+                        innerRadius={isMobile ? 30 : 40}
+                        outerRadius={isMobile ? 60 : 80}
                         paddingAngle={2}
                         dataKey="value"
                       >
@@ -1012,22 +1014,27 @@ const BudgetDetail = () => {
                       </Pie>
                       <Tooltip 
                         formatter={(value) => [`₹${value.toLocaleString('en-IN')}`, 'Amount']}
+                        contentStyle={{
+                          fontSize: isMobile ? '12px' : '14px',
+                          borderRadius: '8px',
+                          border: '1px solid #e5e7eb'
+                        }}
                       />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
                 
-                <div className="mt-4 space-y-2">
+                <div className="mt-3 sm:mt-4 space-y-1 sm:space-y-2">
                   {chartData.map((entry, index) => (
-                    <div key={entry.name} className="flex items-center justify-between">
+                    <div key={entry.name} className="flex items-center justify-between py-1">
                       <div className="flex items-center">
                         <div 
-                          className="w-3 h-3 rounded-full mr-2"
+                          className="w-2 h-2 sm:w-3 sm:h-3 rounded-full mr-2 flex-shrink-0"
                           style={{ backgroundColor: COLORS[index % COLORS.length] }}
                         />
-                        <span className="text-sm text-gray-600">{entry.name}</span>
+                        <span className="mobile-text-sm text-gray-600 truncate pr-2">{entry.name}</span>
                       </div>
-                      <span className="text-sm font-medium">
+                      <span className="mobile-text-sm font-medium text-right">
                         {formatCurrency(entry.value)}
                       </span>
                     </div>
@@ -1040,13 +1047,13 @@ const BudgetDetail = () => {
       </div>
 
       {/* Expense Analytics Section */}
-      <div className="mt-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-semibold text-gray-900">Expense Analytics</h2>
-          <div className="flex space-x-2">
+      <div className="mt-6 sm:mt-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 space-y-3 sm:space-y-0">
+          <h2 className="heading-lg text-gray-900">Expense Analytics</h2>
+          <div className="flex space-x-1 sm:space-x-2 overflow-x-auto">
             <button
               onClick={() => setAnalyticsView('daily')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`px-3 py-2 rounded-lg mobile-text-sm font-medium transition-colors whitespace-nowrap ${
                 analyticsView === 'daily'
                   ? 'bg-blue-100 text-blue-700 border border-blue-200'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -1056,7 +1063,7 @@ const BudgetDetail = () => {
             </button>
             <button
               onClick={() => setAnalyticsView('weekly')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`px-3 py-2 rounded-lg mobile-text-sm font-medium transition-colors whitespace-nowrap ${
                 analyticsView === 'weekly'
                   ? 'bg-blue-100 text-blue-700 border border-blue-200'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -1066,7 +1073,7 @@ const BudgetDetail = () => {
             </button>
             <button
               onClick={() => setAnalyticsView('monthly')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`px-3 py-2 rounded-lg mobile-text-sm font-medium transition-colors whitespace-nowrap ${
                 analyticsView === 'monthly'
                   ? 'bg-blue-100 text-blue-700 border border-blue-200'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -1077,44 +1084,59 @@ const BudgetDetail = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="mobile-grid-1 lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
           {/* Trend Chart */}
           <div className="card">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 sm:mb-4 space-y-2 sm:space-y-0">
+              <h3 className="heading-md text-gray-900">
                 {analyticsView === 'daily' ? 'Daily' : analyticsView === 'weekly' ? 'Weekly' : 'Monthly'} Expense Trends
               </h3>
-              <span className="text-sm text-gray-500">
+              <span className="mobile-text-sm text-gray-500">
                 {analyticsView === 'daily' ? 'Last 30 days' : analyticsView === 'weekly' ? 'Last 12 weeks' : 'Last 12 months'}
               </span>
             </div>
             
-            <div className="h-80">
+            <div className="h-64 sm:h-72 lg:h-80 chart-container">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={analyticsData[analyticsView]} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
+                <LineChart 
+                  data={analyticsData[analyticsView]} 
+                  margin={{ 
+                    top: 5, 
+                    right: isMobile ? 10 : 30, 
+                    left: isMobile ? 10 : 20, 
+                    bottom: isMobile ? 20 : 5 
+                  }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                   <XAxis 
                     dataKey={analyticsView === 'daily' ? 'date' : analyticsView === 'weekly' ? 'week' : 'month'}
-                    tick={{ fontSize: 12 }}
-                    angle={analyticsView === 'weekly' ? -45 : 0}
-                    textAnchor={analyticsView === 'weekly' ? 'end' : 'middle'}
-                    height={analyticsView === 'weekly' ? 60 : 30}
+                    tick={{ fontSize: isMobile ? 10 : 12 }}
+                    angle={isMobile ? -45 : analyticsView === 'weekly' ? -45 : 0}
+                    textAnchor={isMobile || analyticsView === 'weekly' ? 'end' : 'middle'}
+                    height={isMobile || analyticsView === 'weekly' ? 60 : 30}
+                    interval="preserveStartEnd"
                   />
                   <YAxis 
-                    tickFormatter={(value) => `₹${value.toLocaleString('en-IN')}`}
-                    tick={{ fontSize: 12 }}
+                    tickFormatter={(value) => isMobile ? `₹${(value/1000).toFixed(0)}k` : `₹${value.toLocaleString('en-IN')}`}
+                    tick={{ fontSize: isMobile ? 10 : 12 }}
+                    width={isMobile ? 50 : 80}
                   />
                   <Tooltip 
                     formatter={(value) => [`₹${value.toLocaleString('en-IN')}`, 'Amount']}
                     labelFormatter={(label) => analyticsView === 'daily' ? `Date: ${label}` : analyticsView === 'weekly' ? `Week: ${label}` : `Month: ${label}`}
+                    contentStyle={{
+                      fontSize: isMobile ? '12px' : '14px',
+                      borderRadius: '8px',
+                      border: '1px solid #e5e7eb'
+                    }}
                   />
                   <Line 
                     type="monotone" 
                     dataKey="amount" 
                     stroke="#3b82f6" 
-                    strokeWidth={2}
-                    dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }}
-                    activeDot={{ r: 6 }}
+                    strokeWidth={isMobile ? 1.5 : 2}
+                    dot={{ fill: '#3b82f6', strokeWidth: 2, r: isMobile ? 3 : 4 }}
+                    activeDot={{ r: isMobile ? 4 : 6 }}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -1123,36 +1145,47 @@ const BudgetDetail = () => {
 
           {/* Bar Chart */}
           <div className="card">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 sm:mb-4 space-y-2 sm:space-y-0">
+              <h3 className="heading-md text-gray-900">
                 {analyticsView === 'daily' ? 'Daily' : analyticsView === 'weekly' ? 'Weekly' : 'Monthly'} Expense Volume
               </h3>
-              <span className="text-sm text-gray-500">
+              <span className="mobile-text-sm text-gray-500">
                 Amount & Transaction Count
               </span>
             </div>
             
-            <div className="h-80">
+            <div className="h-64 sm:h-72 lg:h-80 chart-container">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={analyticsData[analyticsView]} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
+                <BarChart 
+                  data={analyticsData[analyticsView]} 
+                  margin={{ 
+                    top: 5, 
+                    right: isMobile ? 10 : 30, 
+                    left: isMobile ? 10 : 20, 
+                    bottom: isMobile ? 20 : 5 
+                  }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                   <XAxis 
                     dataKey={analyticsView === 'daily' ? 'date' : analyticsView === 'weekly' ? 'week' : 'month'}
-                    tick={{ fontSize: 12 }}
-                    angle={analyticsView === 'weekly' ? -45 : 0}
-                    textAnchor={analyticsView === 'weekly' ? 'end' : 'middle'}
-                    height={analyticsView === 'weekly' ? 60 : 30}
+                    tick={{ fontSize: isMobile ? 10 : 12 }}
+                    angle={isMobile ? -45 : analyticsView === 'weekly' ? -45 : 0}
+                    textAnchor={isMobile || analyticsView === 'weekly' ? 'end' : 'middle'}
+                    height={isMobile || analyticsView === 'weekly' ? 60 : 30}
+                    interval="preserveStartEnd"
                   />
                   <YAxis 
                     yAxisId="amount"
                     orientation="left"
-                    tickFormatter={(value) => `₹${value.toLocaleString('en-IN')}`}
-                    tick={{ fontSize: 12 }}
+                    tickFormatter={(value) => isMobile ? `₹${(value/1000).toFixed(0)}k` : `₹${value.toLocaleString('en-IN')}`}
+                    tick={{ fontSize: isMobile ? 10 : 12 }}
+                    width={isMobile ? 50 : 80}
                   />
                   <YAxis 
                     yAxisId="count"
                     orientation="right"
-                    tick={{ fontSize: 12 }}
+                    tick={{ fontSize: isMobile ? 10 : 12 }}
+                    width={isMobile ? 30 : 50}
                   />
                   <Tooltip 
                     formatter={(value, name) => [
@@ -1160,8 +1193,13 @@ const BudgetDetail = () => {
                       name === 'amount' ? 'Total Amount' : 'Transaction Count'
                     ]}
                     labelFormatter={(label) => analyticsView === 'daily' ? `Date: ${label}` : analyticsView === 'weekly' ? `Week: ${label}` : `Month: ${label}`}
+                    contentStyle={{
+                      fontSize: isMobile ? '12px' : '14px',
+                      borderRadius: '8px',
+                      border: '1px solid #e5e7eb'
+                    }}
                   />
-                  <Legend />
+                  <Legend wrapperStyle={{ fontSize: isMobile ? '12px' : '14px' }} />
                   <Bar yAxisId="amount" dataKey="amount" fill="#3b82f6" name="amount" />
                   <Bar yAxisId="count" dataKey="count" fill="#10b981" name="count" />
                 </BarChart>
@@ -1171,13 +1209,13 @@ const BudgetDetail = () => {
         </div>
 
         {/* Summary Statistics */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-8">
+        <div className="mobile-grid-2 md:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mt-6 sm:mt-8">
           <div className="stat-card bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-100">
             <div className="text-center">
-              <p className="text-sm text-blue-600 mb-1">
+              <p className="mobile-text-sm text-blue-600 mb-1">
                 {analyticsView === 'daily' ? 'Daily' : analyticsView === 'weekly' ? 'Weekly' : 'Monthly'} Average
               </p>
-              <p className="text-2xl font-bold text-blue-700">
+              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-700">
                 {formatCurrency(
                   analyticsData[analyticsView].length > 0
                     ? analyticsData[analyticsView].reduce((sum, item) => sum + item.amount, 0) / analyticsData[analyticsView].length
@@ -1189,8 +1227,8 @@ const BudgetDetail = () => {
           
           <div className="stat-card bg-gradient-to-r from-green-50 to-emerald-50 border-green-100">
             <div className="text-center">
-              <p className="text-sm text-green-600 mb-1">Highest {analyticsView.charAt(0).toUpperCase() + analyticsView.slice(1)}</p>
-              <p className="text-2xl font-bold text-green-700">
+              <p className="mobile-text-sm text-green-600 mb-1">Highest {analyticsView.charAt(0).toUpperCase() + analyticsView.slice(1)}</p>
+              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-green-700">
                 {formatCurrency(
                   analyticsData[analyticsView].length > 0
                     ? Math.max(...analyticsData[analyticsView].map(item => item.amount))

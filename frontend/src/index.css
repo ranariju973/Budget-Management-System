@@ -76,7 +76,78 @@
   }
   
   .input-field {
-    @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
+    @apply block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-base transition-colors duration-200;
+    min-height: 44px;
+  }
+
+  /* Chart container improvements for mobile */
+  .chart-container {
+    @apply w-full overflow-hidden rounded-lg bg-white;
+  }
+
+  /* Mobile text improvements */
+  .mobile-text-sm {
+    @apply text-xs sm:text-sm;
+  }
+
+  .mobile-text-base {
+    @apply text-sm sm:text-base;
+  }
+
+  .mobile-text-lg {
+    @apply text-base sm:text-lg;
+  }
+
+  /* Improved grid layouts for mobile */
+  .mobile-grid-1 {
+    @apply grid grid-cols-1 gap-3 sm:gap-4 lg:gap-6;
+  }
+
+  .mobile-grid-2 {
+    @apply grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 lg:gap-6;
+  }
+
+  .mobile-grid-3 {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6;
+  }
+
+  .mobile-grid-4 {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6;
+  }
+
+  /* Enhanced spacing for mobile */
+  .mobile-spacing {
+    @apply space-y-3 sm:space-y-4 lg:space-y-6;
+  }
+
+  .mobile-padding {
+    @apply p-3 sm:p-4 lg:p-6;
+  }
+
+  .mobile-margin {
+    @apply m-3 sm:m-4 lg:m-6;
+  }
+
+  /* Enhanced card layouts */
+  .card {
+    @apply bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow duration-200 p-3 sm:p-4 lg:p-6;
+  }
+
+  .stat-card {
+    @apply bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow duration-200 p-3 sm:p-4 lg:p-6;
+  }
+
+  /* Mobile typography improvements */
+  .heading-xl {
+    @apply text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold leading-tight;
+  }
+
+  .heading-lg {
+    @apply text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold leading-tight;
+  }
+
+  .heading-md {
+    @apply text-base sm:text-lg md:text-xl lg:text-2xl font-semibold leading-tight;
   }
 }
 

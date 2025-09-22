@@ -82,14 +82,14 @@ const Dashboard = () => {
   return (
     <div className="pb-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 sm:mb-8 space-y-4 sm:space-y-0">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6 lg:mb-8 space-y-3 sm:space-y-0">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 mt-1 text-sm sm:text-base">Manage your monthly budgets and track expenses</p>
+          <h1 className="heading-xl text-gray-900">Dashboard</h1>
+          <p className="text-gray-600 mt-1 mobile-text-base">Manage your monthly budgets and track expenses</p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="btn-primary flex items-center justify-center sm:justify-start w-full sm:w-auto py-3 sm:py-2 px-4 text-base sm:text-sm font-semibold rounded-xl sm:rounded-lg shadow-lg sm:shadow-md hover:shadow-xl transition-all duration-200"
+          className="btn-primary flex items-center justify-center sm:justify-start w-full sm:w-auto py-3 sm:py-2 px-4 mobile-text-lg sm:text-sm font-semibold rounded-xl sm:rounded-lg shadow-lg sm:shadow-md hover:shadow-xl transition-all duration-200"
         >
           <PlusIcon className="w-5 h-5 mr-2" />
           Add Budget
@@ -98,35 +98,35 @@ const Dashboard = () => {
 
       {/* Quick Stats */}
       {budgets.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
-          <div className="stat-card p-4 sm:p-6">
+        <div className="mobile-grid-3 mb-4 sm:mb-6 lg:mb-8">
+          <div className="stat-card">
             <div className="flex items-center">
-              <CalendarIcon className="w-7 h-7 sm:w-8 sm:h-8 text-primary-600" />
-              <div className="ml-3">
-                <p className="text-xs sm:text-sm text-gray-600">Active Budgets</p>
-                <p className="text-xl sm:text-2xl font-semibold text-gray-900">{budgets.length}</p>
+              <CalendarIcon className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-primary-600 flex-shrink-0" />
+              <div className="ml-3 min-w-0">
+                <p className="mobile-text-sm text-gray-600">Active Budgets</p>
+                <p className="text-lg sm:text-xl lg:text-2xl font-semibold text-gray-900">{budgets.length}</p>
               </div>
             </div>
           </div>
           
-          <div className="stat-card p-4 sm:p-6">
+          <div className="stat-card">
             <div className="flex items-center">
-              <CurrencyDollarIcon className="w-7 h-7 sm:w-8 sm:h-8 text-green-600" />
-              <div className="ml-3">
-                <p className="text-xs sm:text-sm text-gray-600">Total Income</p>
-                <p className="text-lg sm:text-2xl font-semibold text-gray-900">
+              <CurrencyDollarIcon className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-green-600 flex-shrink-0" />
+              <div className="ml-3 min-w-0">
+                <p className="mobile-text-sm text-gray-600">Total Income</p>
+                <p className="text-base sm:text-lg lg:text-2xl font-semibold text-gray-900 truncate">
                   {formatCurrency(budgets.reduce((sum, budget) => sum + budget.income, 0))}
                 </p>
               </div>
             </div>
           </div>
           
-          <div className="stat-card p-4 sm:p-6 sm:col-span-2 lg:col-span-1">
+          <div className="stat-card sm:col-span-2 lg:col-span-1">
             <div className="flex items-center">
-              <ChartBarIcon className="w-7 h-7 sm:w-8 sm:h-8 text-blue-600" />
-              <div className="ml-3">
-                <p className="text-xs sm:text-sm text-gray-600">Avg Monthly Income</p>
-                <p className="text-lg sm:text-2xl font-semibold text-gray-900">
+              <ChartBarIcon className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-blue-600 flex-shrink-0" />
+              <div className="ml-3 min-w-0">
+                <p className="mobile-text-sm text-gray-600">Avg Monthly Income</p>
+                <p className="text-base sm:text-lg lg:text-2xl font-semibold text-gray-900 truncate">
                   {formatCurrency(budgets.length > 0 ? Math.round(budgets.reduce((sum, budget) => sum + budget.income, 0) / budgets.length) : 0)}
                 </p>
               </div>
