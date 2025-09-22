@@ -10,20 +10,45 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const initAuth = async () => {
       try {
-        if (token) {
-          // Try to get current user info
-          const userData = await authService.getCurrentUser();
-          setUser(userData.user);
-        } else {
-          // Check if we have stored user data
-          const storedUser = authService.getStoredUser();
-          if (storedUser) {
-            setUser(storedUser);
+        const storedToken = authService.getStoredToken();
+        const storedUser = authService.getStoredUser();
+        
+        if (storedToken && storedUser) {
+          // If we have both token and user data, set them immediately
+          setUser(storedUser);
+          setToken(storedToken);
+          
+          // Then verify the token is still valid in the background
+          try {
+            const userData = await authService.getCurrentUser();
+            // Update user data if token is valid
+            setUser(userData.user);
+          } catch (error) {
+            // Token is invalid, clear everything
+            console.error('Token validation failed:', error);
+            authService.logout();
+            setUser(null);
+            setToken(null);
           }
+        } else if (storedToken) {
+          // Try to get current user info with the token
+          try {
+            const userData = await authService.getCurrentUser();
+            setUser(userData.user);
+            setToken(storedToken);
+          } catch (error) {
+            console.error('Auth initialization error:', error);
+            authService.logout();
+            setUser(null);
+            setToken(null);
+          }
+        } else {
+          // No token, clear any stale user data
+          setUser(null);
+          setToken(null);
         }
       } catch (error) {
         console.error('Auth initialization error:', error);
-        // Clear invalid token/user data
         authService.logout();
         setUser(null);
         setToken(null);
@@ -33,7 +58,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     initAuth();
-  }, [token]);
+  }, []); // Remove token dependency to avoid infinite loops
 
   const login = async (credentials) => {
     const response = await authService.login(credentials);

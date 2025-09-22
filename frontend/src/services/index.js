@@ -1,21 +1,41 @@
 import api from './api';
+import { cookieUtils } from '../utils/cookies';
 
 // Auth service
 export const authService = {
   // Register new user
   register: async (userData) => {
     const response = await api.post('/auth/register', userData);
+    if (response.data.token) {
+      // Store token and user data in cookies for 7 days
+      cookieUtils.setCookie('token', response.data.token, 7);
+      cookieUtils.setCookie('user', JSON.stringify(response.data.user), 7);
+    }
     return response.data;
   },
 
   // Login user
   login: async (credentials) => {
-    const response = await api.post('/auth/login', credentials);
-    if (response.data.token) {
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+    console.log('Login attempt with:', credentials);
+    console.log('API URL:', api.defaults.baseURL);
+    try {
+      const response = await api.post('/auth/login', credentials);
+      console.log('Login response:', response.data);
+      if (response.data.token) {
+        // Store token and user data in cookies for 7 days
+        cookieUtils.setCookie('token', response.data.token, 7);
+        cookieUtils.setCookie('user', JSON.stringify(response.data.user), 7);
+        
+        // Also keep localStorage for backward compatibility (can be removed later)
+        localStorage.setItem('token', response.data.token);
+        localStorage.setItem('user', JSON.stringify(response.data.user));
+      }
+      return response.data;
+    } catch (error) {
+      console.error('Login error:', error);
+      console.error('Error response:', error.response?.data);
+      throw error;
     }
-    return response.data;
   },
 
   // Get current user
@@ -26,19 +46,33 @@ export const authService = {
 
   // Logout
   logout: () => {
+    // Remove from both cookies and localStorage
+    cookieUtils.deleteCookie('token');
+    cookieUtils.deleteCookie('user');
     localStorage.removeItem('token');
     localStorage.removeItem('user');
   },
 
   // Check if user is logged in
   isLoggedIn: () => {
-    return !!localStorage.getItem('token');
+    // Check both cookie and localStorage for token
+    return !!(cookieUtils.getCookie('token') || localStorage.getItem('token'));
   },
 
   // Get stored user
   getStoredUser: () => {
-    const user = localStorage.getItem('user');
+    // Try to get user from cookie first, then localStorage
+    let user = cookieUtils.getCookie('user');
+    if (!user) {
+      user = localStorage.getItem('user');
+    }
     return user ? JSON.parse(user) : null;
+  },
+
+  // Get stored token
+  getStoredToken: () => {
+    // Try to get token from cookie first, then localStorage
+    return cookieUtils.getCookie('token') || localStorage.getItem('token');
   }
 };
 

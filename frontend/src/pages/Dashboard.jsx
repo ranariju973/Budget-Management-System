@@ -80,53 +80,53 @@ const Dashboard = () => {
   }
 
   return (
-    <div>
+    <div className="pb-6">
       {/* Header */}
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 sm:mb-8 space-y-4 sm:space-y-0">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 mt-1">Manage your monthly budgets and track expenses</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-600 mt-1 text-sm sm:text-base">Manage your monthly budgets and track expenses</p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="btn-primary flex items-center"
+          className="btn-primary flex items-center justify-center sm:justify-start w-full sm:w-auto py-3 sm:py-2 px-4 text-base sm:text-sm font-semibold rounded-xl sm:rounded-lg shadow-lg sm:shadow-md hover:shadow-xl transition-all duration-200"
         >
-          <PlusIcon className="w-4 h-4 mr-2" />
+          <PlusIcon className="w-5 h-5 mr-2" />
           Add Budget
         </button>
       </div>
 
       {/* Quick Stats */}
       {budgets.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="stat-card">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
+          <div className="stat-card p-4 sm:p-6">
             <div className="flex items-center">
-              <CalendarIcon className="w-8 h-8 text-primary-600" />
+              <CalendarIcon className="w-7 h-7 sm:w-8 sm:h-8 text-primary-600" />
               <div className="ml-3">
-                <p className="text-sm text-gray-600">Active Budgets</p>
-                <p className="text-2xl font-semibold text-gray-900">{budgets.length}</p>
+                <p className="text-xs sm:text-sm text-gray-600">Active Budgets</p>
+                <p className="text-xl sm:text-2xl font-semibold text-gray-900">{budgets.length}</p>
               </div>
             </div>
           </div>
           
-          <div className="stat-card">
+          <div className="stat-card p-4 sm:p-6">
             <div className="flex items-center">
-              <CurrencyDollarIcon className="w-8 h-8 text-green-600" />
+              <CurrencyDollarIcon className="w-7 h-7 sm:w-8 sm:h-8 text-green-600" />
               <div className="ml-3">
-                <p className="text-sm text-gray-600">Total Income</p>
-                <p className="text-2xl font-semibold text-gray-900">
+                <p className="text-xs sm:text-sm text-gray-600">Total Income</p>
+                <p className="text-lg sm:text-2xl font-semibold text-gray-900">
                   {formatCurrency(budgets.reduce((sum, budget) => sum + budget.income, 0))}
                 </p>
               </div>
             </div>
           </div>
           
-          <div className="stat-card">
+          <div className="stat-card p-4 sm:p-6 sm:col-span-2 lg:col-span-1">
             <div className="flex items-center">
-              <ChartBarIcon className="w-8 h-8 text-blue-600" />
+              <ChartBarIcon className="w-7 h-7 sm:w-8 sm:h-8 text-blue-600" />
               <div className="ml-3">
-                <p className="text-sm text-gray-600">Avg Monthly Income</p>
-                <p className="text-2xl font-semibold text-gray-900">
+                <p className="text-xs sm:text-sm text-gray-600">Avg Monthly Income</p>
+                <p className="text-lg sm:text-2xl font-semibold text-gray-900">
                   {formatCurrency(budgets.length > 0 ? Math.round(budgets.reduce((sum, budget) => sum + budget.income, 0) / budgets.length) : 0)}
                 </p>
               </div>
@@ -137,7 +137,7 @@ const Dashboard = () => {
 
       {/* Budgets Grid */}
       {budgets.length === 0 ? (
-        <div className="card">
+        <div className="card p-6 sm:p-8">
           <EmptyState
             icon={DocumentIcon}
             title="No budgets yet"
@@ -145,51 +145,51 @@ const Dashboard = () => {
             action={
               <button
                 onClick={() => setShowAddModal(true)}
-                className="btn-primary flex items-center"
+                className="btn-primary flex items-center justify-center w-full sm:w-auto px-6 py-3 text-base font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
               >
-                <PlusIcon className="w-4 h-4 mr-2" />
+                <PlusIcon className="w-5 h-5 mr-2" />
                 Create Budget
               </button>
             }
           />
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {budgets.map((budget) => (
             <Link
               key={budget._id}
               to={`/budget/${budget._id}`}
-              className="card hover:shadow-lg transition-shadow duration-200 border-l-4 border-primary-500"
+              className="card hover:shadow-lg active:scale-[0.98] transition-all duration-200 border-l-4 border-primary-500 p-4 sm:p-6"
             >
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-3 sm:mb-4">
                 <div className="flex items-center">
-                  <CalendarIcon className="w-6 h-6 text-primary-600 mr-2" />
-                  <h3 className="text-lg font-semibold text-gray-900">
+                  <CalendarIcon className="w-5 h-5 sm:w-6 sm:h-6 text-primary-600 mr-2" />
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-900">
                     {months[budget.monthNumber - 1]} {budget.year}
                   </h3>
                 </div>
               </div>
               
               <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Income:</span>
-                  <span className="font-medium text-green-600">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm sm:text-base text-gray-600">Income:</span>
+                  <span className="font-medium text-green-600 text-sm sm:text-base">
                     {formatCurrency(budget.income)}
                   </span>
                 </div>
                 
-                <div className="flex justify-between text-sm text-gray-500">
+                <div className="flex justify-between text-xs sm:text-sm text-gray-500">
                   <span>Expenses:</span>
                   <span>{budget.expenses?.length || 0} items</span>
                 </div>
                 
-                <div className="flex justify-between text-sm text-gray-500">
+                <div className="flex justify-between text-xs sm:text-sm text-gray-500">
                   <span>Borrowings:</span>
                   <span>{budget.borrowings?.length || 0} items</span>
                 </div>
               </div>
               
-              <div className="mt-4 pt-4 border-t border-gray-100">
+              <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-100">
                 <span className="text-xs text-gray-500">
                   Created {new Date(budget.createdAt).toLocaleDateString()}
                 </span>

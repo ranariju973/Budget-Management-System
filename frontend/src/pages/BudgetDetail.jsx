@@ -10,7 +10,9 @@ import {
   TrashIcon,
   CheckCircleIcon,
   XCircleIcon,
-  HandRaisedIcon
+  HandRaisedIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon
 } from '@heroicons/react/24/outline';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar, Legend } from 'recharts';
 import { budgetService, expenseService, borrowingService, lendingService } from '../services';
@@ -54,6 +56,12 @@ const BudgetDetail = () => {
   const [editingLending, setEditingLending] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [analyticsView, setAnalyticsView] = useState('daily'); // daily, weekly, monthly
+  
+  // Date navigation states
+  const [currentExpenseDate, setCurrentExpenseDate] = useState(new Date().toISOString().split('T')[0]);
+  const [currentBorrowingDate, setCurrentBorrowingDate] = useState(new Date().toISOString().split('T')[0]);
+  const [currentLendingDate, setCurrentLendingDate] = useState(new Date().toISOString().split('T')[0]);
+  
   const { showSuccess, showError } = useToast();
 
   const {
@@ -89,9 +97,25 @@ const BudgetDetail = () => {
 
       setBudget(budgetResponse.budget);
       setSummary(summaryResponse.summary);
-      setExpenses(expensesResponse.expenses || []);
-      setBorrowings(borrowingsResponse.borrowings || []);
-      setLendings(lendingsResponse.lendings || []);
+      
+      const expensesData = expensesResponse.expenses || [];
+      const borrowingsData = borrowingsResponse.borrowings || [];
+      const lendingsData = lendingsResponse.lendings || [];
+      
+      setExpenses(expensesData);
+      setBorrowings(borrowingsData);
+      setLendings(lendingsData);
+      
+      // Set initial dates to latest transaction dates for better UX
+      if (expensesData.length > 0) {
+        setCurrentExpenseDate(findLatestTransactionDate(expensesData));
+      }
+      if (borrowingsData.length > 0) {
+        setCurrentBorrowingDate(findLatestTransactionDate(borrowingsData));
+      }
+      if (lendingsData.length > 0) {
+        setCurrentLendingDate(findLatestTransactionDate(lendingsData));
+      }
     } catch (err) {
       console.error('Failed to load budget data:', err);
       showError('Failed to load budget data');
@@ -304,6 +328,121 @@ const BudgetDetail = () => {
     value: amount
   })) : [];
 
+  // Date navigation functions
+  const findLatestTransactionDate = (items) => {
+    if (items.length === 0) {
+      return new Date().toISOString().split('T')[0];
+    }
+    
+    const dates = items.map(item => new Date(item.date).toISOString().split('T')[0]);
+    dates.sort((a, b) => new Date(b) - new Date(a)); // Sort descending (latest first)
+    return dates[0];
+  };
+
+  const findLastAvailableDate = (items, startDate, direction = 'prev', maxDays = 365) => {
+    if (items.length === 0) {
+      return startDate; // No items available
+    }
+    
+    const date = new Date(startDate);
+    
+    for (let i = 1; i <= maxDays; i++) {
+      if (direction === 'prev') {
+        date.setDate(date.getDate() - 1);
+      } else {
+        date.setDate(date.getDate() + 1);
+      }
+      
+      const dateString = date.toISOString().split('T')[0];
+      const itemsOnDate = filterByDate(items, dateString);
+      
+      if (itemsOnDate.length > 0) {
+        return dateString;
+      }
+    }
+    
+    // If no transactions found, return the original date
+    return startDate;
+  };
+
+  const navigateDate = (currentDate, setCurrentDate, direction) => {
+    const date = new Date(currentDate);
+    date.setDate(date.getDate() + (direction === 'next' ? 1 : -1));
+    const newDate = date.toISOString().split('T')[0];
+    
+    // Determine which items to check based on the current section
+    let itemsToCheck = [];
+    let sectionName = '';
+    if (setCurrentDate === setCurrentExpenseDate) {
+      itemsToCheck = expenses;
+      sectionName = 'expenses';
+    } else if (setCurrentDate === setCurrentBorrowingDate) {
+      itemsToCheck = borrowings;
+      sectionName = 'borrowings';
+    } else if (setCurrentDate === setCurrentLendingDate) {
+      itemsToCheck = lendings;
+      sectionName = 'lendings';
+    }
+    
+    // Check if there are any items at all
+    if (itemsToCheck.length === 0) {
+      showError(`No ${sectionName} found. Add some ${sectionName} to use navigation.`);
+      return;
+    }
+    
+    // Check if the new date has any transactions
+    const itemsOnNewDate = filterByDate(itemsToCheck, newDate);
+    
+    if (itemsOnNewDate.length > 0) {
+      // Found transactions on the next/previous day
+      setCurrentDate(newDate);
+    } else {
+      // No transactions on next/previous day, find the last available date
+      const lastAvailableDate = findLastAvailableDate(itemsToCheck, newDate, direction);
+      
+      if (lastAvailableDate === newDate) {
+        // No transactions found in this direction
+        const directionText = direction === 'next' ? 'later' : 'earlier';
+        showError(`No ${directionText} ${sectionName} found.`);
+        return;
+      }
+      
+      if (lastAvailableDate !== newDate) {
+        // We jumped to a different date, show notification
+        const jumpedDate = formatDateDisplay(lastAvailableDate);
+        showSuccess(`Jumped to ${jumpedDate} - the last available day with ${sectionName}`);
+      }
+      
+      setCurrentDate(lastAvailableDate);
+    }
+  };
+
+  const filterByDate = (items, targetDate) => {
+    return items.filter(item => {
+      const itemDate = new Date(item.date).toISOString().split('T')[0];
+      return itemDate === targetDate;
+    });
+  };
+
+  const formatDateDisplay = (dateString) => {
+    const date = new Date(dateString);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    if (date.toDateString() === today.toDateString()) {
+      return 'Today';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return 'Yesterday';
+    } else {
+      return date.toLocaleDateString('en-IN', { 
+        day: 'numeric', 
+        month: 'short', 
+        year: 'numeric' 
+      });
+    }
+  };
+
   // Analytics data processing functions
   const processExpenseAnalytics = () => {
     if (!expenses || expenses.length === 0) return { daily: [], weekly: [], monthly: [] };
@@ -489,7 +628,28 @@ const BudgetDetail = () => {
         {/* Expenses Section */}
         <div className="lg:col-span-2">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold text-gray-900">Expenses</h2>
+            <div className="flex items-center space-x-4">
+              <h2 className="text-xl font-semibold text-gray-900">Expenses</h2>
+              <div className="flex items-center space-x-2 bg-gray-50 rounded-lg px-3 py-2">
+                <button
+                  onClick={() => navigateDate(currentExpenseDate, setCurrentExpenseDate, 'prev')}
+                  className="p-1 hover:bg-gray-200 rounded transition-colors"
+                  title="Previous day with expenses (auto-skips empty days)"
+                >
+                  <ChevronLeftIcon className="w-4 h-4 text-gray-600" />
+                </button>
+                <span className="text-sm font-medium text-gray-700 min-w-[80px] text-center">
+                  {formatDateDisplay(currentExpenseDate)}
+                </span>
+                <button
+                  onClick={() => navigateDate(currentExpenseDate, setCurrentExpenseDate, 'next')}
+                  className="p-1 hover:bg-gray-200 rounded transition-colors"
+                  title="Next day with expenses (auto-skips empty days)"
+                >
+                  <ChevronRightIcon className="w-4 h-4 text-gray-600" />
+                </button>
+              </div>
+            </div>
             <button
               onClick={() => {
                 setEditingExpense(null);
@@ -506,30 +666,30 @@ const BudgetDetail = () => {
           </div>
 
           <div className="card">
-            {expenses.length === 0 ? (
-              <EmptyState
-                icon={BanknotesIcon}
-                title="No expenses yet"
-                description="Start tracking your expenses for this month"
-                action={
+            {(() => {
+              const filteredExpenses = filterByDate(expenses, currentExpenseDate);
+              return filteredExpenses.length === 0 ? (
+                <div className="text-center py-8">
+                  <BanknotesIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No expenses for {formatDateDisplay(currentExpenseDate)}</h3>
+                  <p className="text-gray-500 mb-4">Use the arrows to navigate to other days or add an expense for this day</p>
                   <button
                     onClick={() => {
                       setEditingExpense(null);
                       resetExpenseForm({
-                        date: new Date().toISOString().split('T')[0]
+                        date: currentExpenseDate
                       });
                       setShowExpenseModal(true);
                     }}
-                    className="btn-primary flex items-center"
+                    className="btn-primary flex items-center mx-auto"
                   >
                     <PlusIcon className="w-4 h-4 mr-2" />
-                    Add First Expense
+                    Add Expense for {formatDateDisplay(currentExpenseDate)}
                   </button>
-                }
-              />
-            ) : (
-              <div className="space-y-3">
-                {expenses.map((expense) => {
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {filteredExpenses.map((expense) => {
                   // Check if this is a lending repayment income (negative amount)
                   const isLendingRepayment = expense.amount < 0 && expense.name.includes('Loan Repayment from');
                   // Check if this is a lending expense (positive amount for money lent out)
@@ -589,13 +749,35 @@ const BudgetDetail = () => {
                   );
                 })}
               </div>
-            )}
+            );
+          })()}
           </div>
 
           {/* Borrowings Section */}
           <div className="mt-8">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-gray-900">Borrowings</h2>
+              <div className="flex items-center space-x-4">
+                <h2 className="text-xl font-semibold text-gray-900">Borrowings</h2>
+                <div className="flex items-center space-x-2 bg-gray-50 rounded-lg px-3 py-2">
+                  <button
+                    onClick={() => navigateDate(currentBorrowingDate, setCurrentBorrowingDate, 'prev')}
+                    className="p-1 hover:bg-gray-200 rounded transition-colors"
+                    title="Previous day with borrowings (auto-skips empty days)"
+                  >
+                    <ChevronLeftIcon className="w-4 h-4 text-gray-600" />
+                  </button>
+                  <span className="text-sm font-medium text-gray-700 min-w-[80px] text-center">
+                    {formatDateDisplay(currentBorrowingDate)}
+                  </span>
+                  <button
+                    onClick={() => navigateDate(currentBorrowingDate, setCurrentBorrowingDate, 'next')}
+                    className="p-1 hover:bg-gray-200 rounded transition-colors"
+                    title="Next day with borrowings (auto-skips empty days)"
+                  >
+                    <ChevronRightIcon className="w-4 h-4 text-gray-600" />
+                  </button>
+                </div>
+              </div>
               <button
                 onClick={() => {
                   setEditingBorrowing(null);
@@ -612,30 +794,30 @@ const BudgetDetail = () => {
             </div>
 
             <div className="card">
-              {borrowings.length === 0 ? (
-                <EmptyState
-                  icon={BanknotesIcon}
-                  title="No borrowings yet"
-                  description="Track money you've borrowed this month"
-                  action={
+              {(() => {
+                const filteredBorrowings = filterByDate(borrowings, currentBorrowingDate);
+                return filteredBorrowings.length === 0 ? (
+                  <div className="text-center py-8">
+                    <BanknotesIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No borrowings for {formatDateDisplay(currentBorrowingDate)}</h3>
+                    <p className="text-gray-500 mb-4">Use the arrows to navigate to other days or add a borrowing for this day</p>
                     <button
                       onClick={() => {
                         setEditingBorrowing(null);
                         resetBorrowingForm({
-                          date: new Date().toISOString().split('T')[0]
+                          date: currentBorrowingDate
                         });
                         setShowBorrowingModal(true);
                       }}
-                      className="btn-primary flex items-center"
+                      className="btn-primary flex items-center mx-auto"
                     >
                       <PlusIcon className="w-4 h-4 mr-2" />
-                      Add First Borrowing
+                      Add Borrowing for {formatDateDisplay(currentBorrowingDate)}
                     </button>
-                  }
-                />
-              ) : (
-                <div className="space-y-3">
-                  {borrowings.map((borrowing) => (
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredBorrowings.map((borrowing) => (
                     <div key={borrowing._id} className={`flex items-center justify-between p-4 border rounded-lg ${borrowing.isRepaid ? 'border-green-200 bg-green-50' : 'border-gray-100'} hover:shadow-sm`}>
                       <div className="flex-1">
                         <div className="flex items-center justify-between">
@@ -680,14 +862,36 @@ const BudgetDetail = () => {
                     </div>
                   ))}
                 </div>
-              )}
+              );
+            })()}
             </div>
           </div>
 
           {/* Lendings Section */}
           <div className="mt-8">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-gray-900">Money Lent Out</h2>
+              <div className="flex items-center space-x-4">
+                <h2 className="text-xl font-semibold text-gray-900">Money Lent Out</h2>
+                <div className="flex items-center space-x-2 bg-gray-50 rounded-lg px-3 py-2">
+                  <button
+                    onClick={() => navigateDate(currentLendingDate, setCurrentLendingDate, 'prev')}
+                    className="p-1 hover:bg-gray-200 rounded transition-colors"
+                    title="Previous day with lendings (auto-skips empty days)"
+                  >
+                    <ChevronLeftIcon className="w-4 h-4 text-gray-600" />
+                  </button>
+                  <span className="text-sm font-medium text-gray-700 min-w-[80px] text-center">
+                    {formatDateDisplay(currentLendingDate)}
+                  </span>
+                  <button
+                    onClick={() => navigateDate(currentLendingDate, setCurrentLendingDate, 'next')}
+                    className="p-1 hover:bg-gray-200 rounded transition-colors"
+                    title="Next day with lendings (auto-skips empty days)"
+                  >
+                    <ChevronRightIcon className="w-4 h-4 text-gray-600" />
+                  </button>
+                </div>
+              </div>
               <button
                 onClick={() => {
                   setEditingLending(null);
@@ -704,30 +908,30 @@ const BudgetDetail = () => {
             </div>
 
             <div className="card">
-              {lendings.length === 0 ? (
-                <EmptyState
-                  icon={HandRaisedIcon}
-                  title="No lendings yet"
-                  description="Track money you've lent to others this month"
-                  action={
+              {(() => {
+                const filteredLendings = filterByDate(lendings, currentLendingDate);
+                return filteredLendings.length === 0 ? (
+                  <div className="text-center py-8">
+                    <HandRaisedIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No lendings for {formatDateDisplay(currentLendingDate)}</h3>
+                    <p className="text-gray-500 mb-4">Use the arrows to navigate to other days or add a lending for this day</p>
                     <button
                       onClick={() => {
                         setEditingLending(null);
                         resetLendingForm({
-                          date: new Date().toISOString().split('T')[0]
+                          date: currentLendingDate
                         });
                         setShowLendingModal(true);
                       }}
-                      className="btn-primary flex items-center"
+                      className="btn-primary flex items-center mx-auto"
                     >
                       <PlusIcon className="w-4 h-4 mr-2" />
-                      Add First Lending
+                      Add Lending for {formatDateDisplay(currentLendingDate)}
                     </button>
-                  }
-                />
-              ) : (
-                <div className="space-y-3">
-                  {lendings.map((lending) => (
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredLendings.map((lending) => (
                     <div key={lending._id} className={`flex items-center justify-between p-4 border rounded-lg ${lending.isRepaid ? 'border-green-200 bg-green-50' : 'border-gray-100'} hover:shadow-sm`}>
                       <div className="flex-1">
                         <div className="flex items-center justify-between">
@@ -772,7 +976,8 @@ const BudgetDetail = () => {
                     </div>
                   ))}
                 </div>
-              )}
+              );
+            })()}
             </div>
           </div>
         </div>
