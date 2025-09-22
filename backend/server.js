@@ -26,6 +26,8 @@ app.use(cors({
     'http://localhost:5176',
     'http://localhost:5177',
     'http://localhost:5178',
+    // Specific production frontend URL
+    'https://budget-management-system-frontend.onrender.com',
     // Add production frontend URL patterns
     /^https:\/\/.*\.vercel\.app$/,
     /^https:\/\/.*\.netlify\.app$/,
@@ -33,8 +35,9 @@ app.use(cors({
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
-  exposedHeaders: ['Set-Cookie']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-Requested-With'],
+  exposedHeaders: ['Set-Cookie'],
+  optionsSuccessStatus: 200 // For legacy mobile browsers
 }));
 app.use(cookieParser());
 app.use(express.json());
