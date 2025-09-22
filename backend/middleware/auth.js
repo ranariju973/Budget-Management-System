@@ -3,15 +3,15 @@ const User = require('../models/User');
 
 const authMiddleware = async (req, res, next) => {
   try {
+    // Try to get token from Authorization header first, then from cookies
     const authHeader = req.header('Authorization');
+    let token = null;
     
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ 
-        message: 'Access denied. No token provided or invalid format.' 
-      });
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    } else if (req.cookies && req.cookies.token) {
+      token = req.cookies.token;
     }
-
-    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
     
     if (!token) {
       return res.status(401).json({ 

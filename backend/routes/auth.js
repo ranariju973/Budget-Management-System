@@ -79,6 +79,16 @@ router.post('/register', registerValidation, handleValidationErrors, async (req,
     // Generate token
     const token = generateToken(user._id);
 
+    // Set secure cookie for production
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    };
+
+    res.cookie('token', token, cookieOptions);
+
     res.status(201).json({
       message: 'User registered successfully',
       token,
@@ -122,6 +132,16 @@ router.post('/login', loginValidation, handleValidationErrors, async (req, res) 
 
     // Generate token
     const token = generateToken(user._id);
+
+    // Set secure cookie for production
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    };
+
+    res.cookie('token', token, cookieOptions);
 
     res.json({
       message: 'Login successful',
