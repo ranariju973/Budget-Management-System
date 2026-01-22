@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { cookieUtils } from '../utils/cookies';
+import { auth } from '../firebase';
 
 // Create axios instance
 const api = axios.create({
@@ -7,17 +7,20 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json'
   },
-  withCredentials: true, // Important for cross-origin requests with cookies
   timeout: 10000 // 10 second timeout
 });
 
 // Request interceptor to add auth token
 api.interceptors.request.use(
-  (config) => {
-    // Try to get token from cookie first, then localStorage for backward compatibility
-    const token = cookieUtils.getCookie('token') || localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+  async (config) => {
+    // Get token from Firebase Auth
+    if (auth.currentUser) {
+      try {
+        const token = await auth.currentUser.getIdToken();
+        config.headers.Authorization = `Bearer ${token}`;
+      } catch (error) {
+        console.error('Error getting ID token:', error);
+      }
     }
     return config;
   },
@@ -30,22 +33,8 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401 && !error.config.url.includes('/auth/login')) {
-      // Token expired or invalid (but don't redirect on login failures)
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      cookieUtils.deleteCookie('token');
-      cookieUtils.deleteCookie('user');
-      
-      // Check if we're already on a public page to avoid unnecessary redirects
-      const currentPath = window.location.pathname;
-      const publicPaths = ['/', '/login', '/register'];
-      
-      if (!publicPaths.includes(currentPath)) {
-        // Only redirect if we're on a protected page
-        window.location.href = '/';
-      }
-    }
+    // We rely on onAuthStateChanged in AuthContext to handle auth state, 
+    // but we can still emit events or just reject here.
     return Promise.reject(error);
   }
 );

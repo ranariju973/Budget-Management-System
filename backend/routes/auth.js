@@ -1,215 +1,84 @@
 const express = require('express');
-const { body, validationResult } = require('express-validator');
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const admin = require('firebase-admin');
+const verifyToken = require('../middleware/firebaseAuth');
 
 const router = express.Router();
+const db = admin.firestore();
 
-// Generate JWT token
-const generateToken = (userId) => {
-  return jwt.sign({ userId }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || '7d'
-  });
-};
-
-// Validation middleware
-const handleValidationErrors = (req, res, next) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({
-      message: 'Validation failed',
-      errors: errors.array()
-    });
-  }
-  next();
-};
-
-// Register validation rules
-const registerValidation = [
-  body('name')
-    .trim()
-    .isLength({ min: 2, max: 50 })
-    .withMessage('Name must be between 2 and 50 characters'),
-  body('email')
-    .isEmail()
-    .normalizeEmail()
-    .withMessage('Please provide a valid email'),
-  body('password')
-    .isLength({ min: 6 })
-    .withMessage('Password must be at least 6 characters long')
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
-    .withMessage('Password must contain at least one uppercase letter, one lowercase letter, and one number')
-];
-
-// Login validation rules
-const loginValidation = [
-  body('email')
-    .isEmail()
-    .normalizeEmail()
-    .withMessage('Please provide a valid email'),
-  body('password')
-    .notEmpty()
-    .withMessage('Password is required')
-];
-
-// @route   POST /api/auth/register
-// @desc    Register a new user
-// @access  Public
-router.post('/register', registerValidation, handleValidationErrors, async (req, res) => {
+// @route   POST /api/auth/sync
+// @desc    Sync user data from Firebase Auth to Firestore (if new user)
+// @access  Private (Valid Token Required)
+router.post('/sync', verifyToken, async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { uid, email, name, picture } = req.user; // properties from decoded token
+    
+    const userRef = db.collection('users').doc(uid);
+    const doc = await userRef.get();
 
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({
-        message: 'User already exists with this email'
+    if (!doc.exists) {
+      // Create new user profile in Firestore
+      const newUser = {
+        name: name || email.split('@')[0],
+        email,
+        picture,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      };
+      await userRef.set(newUser);
+      return res.status(201).json({ 
+        message: 'User profile created', 
+        user: { id: uid, ...newUser } 
       });
     }
 
-    // Create new user
-    const user = new User({
-      name,
-      email,
-      passwordHash: password // Will be hashed by pre-save middleware
+    // User exists, maybe update last login?
+    await userRef.update({ 
+      lastLogin: admin.firestore.FieldValue.serverTimestamp() 
     });
 
-    await user.save();
-
-    // Generate token
-    const token = generateToken(user._id);
-
-    // Set secure cookie for production
-    const cookieOptions = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-    };
-
-    res.cookie('token', token, cookieOptions);
-
-    res.status(201).json({
-      message: 'User registered successfully',
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email
-      }
+    res.json({ 
+      message: 'User synced', 
+      user: { id: uid, ...doc.data() } 
     });
+
   } catch (error) {
-    console.error('Register error:', error);
-    res.status(500).json({
-      message: 'Error creating user',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-});
-
-// @route   POST /api/auth/login
-// @desc    Login user
-// @access  Public
-router.post('/login', loginValidation, handleValidationErrors, async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    // Find user by email
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(401).json({
-        message: 'Invalid email or password'
-      });
-    }
-
-    // Check password
-    const isPasswordValid = await user.comparePassword(password);
-    if (!isPasswordValid) {
-      return res.status(401).json({
-        message: 'Invalid email or password'
-      });
-    }
-
-    // Generate token
-    const token = generateToken(user._id);
-
-    // Set secure cookie for production
-    const cookieOptions = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-    };
-
-    res.cookie('token', token, cookieOptions);
-
-    res.json({
-      message: 'Login successful',
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email
-      }
-    });
-  } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({
-      message: 'Error logging in',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
+    console.error('Sync error:', error);
+    res.status(500).json({ message: 'Error syncing user' });
   }
 });
 
 // @route   GET /api/auth/me
-// @desc    Get current user
+// @desc    Get current user profile
 // @access  Private
-router.get('/me', require('../middleware/auth'), async (req, res) => {
+router.get('/me', verifyToken, async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId);
-    if (!user) {
-      return res.status(404).json({
-        message: 'User not found'
-      });
+    const userRef = db.collection('users').doc(req.user.uid);
+    const doc = await userRef.get();
+
+    if (!doc.exists) {
+        // Fallback if doc doesn't exist but they have a valid token (rare, but possible if sync failed)
+        // We can check auth directly
+        const userRecord = await admin.auth().getUser(req.user.uid);
+        return res.json({
+            user: {
+                id: req.user.uid,
+                email: userRecord.email,
+                name: userRecord.displayName
+            }
+        });
     }
 
     res.json({
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        createdAt: user.createdAt
-      }
+        user: { id: doc.id, ...doc.data() }
     });
+
   } catch (error) {
     console.error('Get user error:', error);
-    res.status(500).json({
-      message: 'Error fetching user data'
-    });
+    res.status(500).json({ message: 'Error fetching user data' });
   }
 });
 
-// @route   POST /api/auth/logout
-// @desc    Logout user (clear cookie)
-// @access  Public
-router.post('/logout', (req, res) => {
-  try {
-    // Clear the token cookie
-    res.clearCookie('token', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
-    });
-
-    res.json({
-      message: 'Logged out successfully'
-    });
-  } catch (error) {
-    console.error('Logout error:', error);
-    res.status(500).json({
-      message: 'Error logging out'
-    });
-  }
-});
+// Legacy routes (stubbed out or removed)
+// We remove login/register/logout because that's handled client-side by Firebase SDK directly.
+// But we might want to keep the paths returning 404 or 400 to avoid confusion if frontend calls them.
 
 module.exports = router;

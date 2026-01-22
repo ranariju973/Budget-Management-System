@@ -1,8 +1,8 @@
 const express = require('express');
-const mongoose = require('mongoose');
+
 const cors = require('cors');
 const dotenv = require('dotenv');
-const cookieParser = require('cookie-parser');
+
 
 // Load environment variables
 dotenv.config();
@@ -39,9 +39,25 @@ app.use(cors({
   exposedHeaders: ['Set-Cookie'],
   optionsSuccessStatus: 200 // For legacy mobile browsers
 }));
-app.use(cookieParser());
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Firebase Admin Initialization
+const admin = require('firebase-admin');
+const serviceAccount = process.env.GOOGLE_APPLICATION_CREDENTIALS ? require(process.env.GOOGLE_APPLICATION_CREDENTIALS) : null;
+
+if (serviceAccount) {
+    admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+    });
+} else {
+    // Fallback to default credentials (useful for GCP environments or if GOOGLE_APPLICATION_CREDENTIALS env var is set to path)
+    // For local dev without a key file, this might warn.
+    admin.initializeApp({
+        projectId: 'budget-management-demo-app' 
+    });
+}
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -52,7 +68,7 @@ app.use('/api/lendings', lendingRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.json({ message: 'Budget Management API is running!' });
+  res.json({ message: 'Budget Management API is running with Firebase!' });
 });
 
 // Error handling middleware
@@ -69,18 +85,9 @@ app.use('*', (req, res) => {
   res.status(404).json({ message: 'Route not found' });
 });
 
-// Database connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/budget_management')
-  .then(() => {
-    console.log('Connected to MongoDB');
-    app.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
-    });
-  })
-  .catch((error) => {
-    console.error('Database connection error:', error);
-    process.exit(1);
-  });
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+});
 
 module.exports = app;
 // Force restart

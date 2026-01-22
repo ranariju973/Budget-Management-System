@@ -1,316 +1,247 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
-const Borrowing = require('../models/Borrowing');
-const Budget = require('../models/Budget');
-const Expense = require('../models/Expense');
-const authMiddleware = require('../middleware/auth');
+const admin = require('firebase-admin');
+const verifyToken = require('../middleware/firebaseAuth');
 
 const router = express.Router();
+const db = admin.firestore();
 
-// Apply auth middleware to all routes
-router.use(authMiddleware);
+router.use(verifyToken);
 
-// Validation middleware
 const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({
-      message: 'Validation failed',
-      errors: errors.array()
-    });
-  }
+  if (!errors.isEmpty()) return res.status(400).json({ message: 'Validation failed', errors: errors.array() });
   next();
 };
 
-// Borrowing validation rules
 const borrowingValidation = [
-  body('budgetId')
-    .isMongoId()
-    .withMessage('Invalid budget ID'),
-  body('lenderName')
-    .trim()
-    .isLength({ min: 1, max: 100 })
-    .withMessage('Lender name must be between 1 and 100 characters'),
-  body('amount')
-    .isFloat({ min: 0.01 })
-    .withMessage('Amount must be greater than 0'),
-  body('date')
-    .isISO8601()
-    .toDate()
-    .withMessage('Please provide a valid date'),
-  body('notes')
-    .optional()
-    .trim()
-    .isLength({ max: 500 })
-    .withMessage('Notes cannot exceed 500 characters')
+  body('budgetId').notEmpty().withMessage('Budget ID is required'),
+  body('lenderName').trim().isLength({ min: 1, max: 100 }),
+  body('amount').isFloat({ min: 0.01 }),
+  body('date').isISO8601().toDate(),
+  body('notes').optional().trim().isLength({ max: 500 })
 ];
 
 // @route   POST /api/borrowings
-// @desc    Create a new borrowing
-// @access  Private
 router.post('/', borrowingValidation, handleValidationErrors, async (req, res) => {
   try {
     const { budgetId, lenderName, amount, date, notes } = req.body;
+    const userId = req.user.uid;
 
-    // Verify budget belongs to user
-    const budget = await Budget.findOne({
-      _id: budgetId,
-      userId: req.user.userId
-    });
-
-    if (!budget) {
-      return res.status(404).json({
-        message: 'Budget not found'
-      });
+    const budgetDoc = await db.collection('budgets').doc(budgetId).get();
+    if (!budgetDoc.exists || budgetDoc.data().userId !== userId) {
+      return res.status(404).json({ message: 'Budget not found' });
     }
 
-    const borrowing = new Borrowing({
-      userId: req.user.userId,
+    const newBorrowing = {
+      userId,
       budgetId,
       lenderName,
       amount,
-      date,
-      notes
-    });
+      date: admin.firestore.Timestamp.fromDate(new Date(date)),
+      notes,
+      isRepaid: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    };
 
-    await borrowing.save();
+    const docRef = await db.collection('borrowings').add(newBorrowing);
+    const savedBorrowing = (await docRef.get()).data();
+    if(savedBorrowing.date) savedBorrowing.date = savedBorrowing.date.toDate();
 
     res.status(201).json({
       message: 'Borrowing created successfully',
-      borrowing
+      borrowing: { id: docRef.id, ...savedBorrowing }
     });
   } catch (error) {
     console.error('Create borrowing error:', error);
-    res.status(500).json({
-      message: 'Error creating borrowing',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
+    res.status(500).json({ message: 'Error creating borrowing' });
   }
 });
 
 // @route   GET /api/borrowings
-// @desc    Get borrowings by budget ID
-// @access  Private
 router.get('/', async (req, res) => {
   try {
-    const { budgetId, isRepaid, startDate, endDate } = req.query;
+    const { budgetId, isRepaid } = req.query;
+    const userId = req.user.uid;
 
-    let query = { userId: req.user.userId };
+    let query = db.collection('borrowings').where('userId', '==', userId);
 
     if (budgetId) {
-      // Verify budget belongs to user
-      const budget = await Budget.findOne({
-        _id: budgetId,
-        userId: req.user.userId
-      });
-
-      if (!budget) {
-        return res.status(404).json({
-          message: 'Budget not found'
-        });
-      }
-
-      query.budgetId = budgetId;
+        // Validation check
+        const budgetDoc = await db.collection('budgets').doc(budgetId).get();
+        if (!budgetDoc.exists || budgetDoc.data().userId !== userId) {
+            return res.status(404).json({ message: 'Budget not found' });
+        }
+        query = query.where('budgetId', '==', budgetId);
     }
-
     if (isRepaid !== undefined) {
-      query.isRepaid = isRepaid === 'true';
+      query = query.where('isRepaid', '==', isRepaid === 'true');
     }
 
-    if (startDate || endDate) {
-      query.date = {};
-      if (startDate) query.date.$gte = new Date(startDate);
-      if (endDate) query.date.$lte = new Date(endDate);
-    }
-
-    const borrowings = await Borrowing.find(query)
-      .sort({ date: -1 })
-      .populate('budgetId', 'year monthNumber monthName');
-
-    res.json({
-      borrowings
+    const snapshot = await query.get();
+    const borrowings = [];
+    snapshot.forEach(doc => {
+        const d = doc.data();
+        if(d.date) d.date = d.date.toDate();
+        if(d.repaidDate) d.repaidDate = d.repaidDate.toDate();
+        borrowings.push({ id: doc.id, ...d });
     });
+
+    borrowings.sort((a, b) => b.date - a.date);
+
+    // Populate budgets
+    const budgetIds = [...new Set(borrowings.map(b => b.budgetId))];
+    const budgetMap = {};
+    if (budgetIds.length > 0) {
+        const budgetSnapshots = await db.getAll(...budgetIds.map(id => db.collection('budgets').doc(id)));
+        budgetSnapshots.forEach(doc => { if (doc.exists) budgetMap[doc.id] = doc.data(); });
+    }
+
+    const populatedBorrowings = borrowings.map(b => ({
+        ...b,
+        budgetId: budgetMap[b.budgetId] ? { id: b.budgetId, year: budgetMap[b.budgetId].year, monthNumber: budgetMap[b.budgetId].monthNumber } : b.budgetId
+    }));
+
+    res.json({ borrowings: populatedBorrowings });
   } catch (error) {
     console.error('Get borrowings error:', error);
-    res.status(500).json({
-      message: 'Error fetching borrowings'
-    });
+    res.status(500).json({ message: 'Error fetching borrowings' });
   }
 });
 
 // @route   GET /api/borrowings/:id
-// @desc    Get borrowing by ID
-// @access  Private
 router.get('/:id', async (req, res) => {
-  try {
-    const borrowing = await Borrowing.findOne({
-      _id: req.params.id,
-      userId: req.user.userId
-    }).populate('budgetId', 'year monthNumber monthName');
+    try {
+        const doc = await db.collection('borrowings').doc(req.params.id).get();
+        if (!doc.exists || doc.data().userId !== req.user.uid) return res.status(404).json({ message: 'Borrowing not found' });
+        
+        const data = doc.data();
+        if(data.date) data.date = data.date.toDate();
+        if(data.repaidDate) data.repaidDate = data.repaidDate.toDate();
 
-    if (!borrowing) {
-      return res.status(404).json({
-        message: 'Borrowing not found'
-      });
+        const budgetDoc = await db.collection('budgets').doc(data.budgetId).get();
+        let budgetData = data.budgetId;
+        if(budgetDoc.exists) {
+            const b = budgetDoc.data();
+            budgetData = { id: budgetDoc.id, year: b.year, monthNumber: b.monthNumber };
+        }
+
+        res.json({ borrowing: { id: doc.id, ...data, budgetId: budgetData } });
+    } catch(e) {
+        res.status(500).json({ message: 'Error fetching borrowing' });
     }
-
-    res.json({
-      borrowing
-    });
-  } catch (error) {
-    console.error('Get borrowing error:', error);
-    res.status(500).json({
-      message: 'Error fetching borrowing'
-    });
-  }
 });
 
 // @route   PUT /api/borrowings/:id
-// @desc    Update borrowing
-// @access  Private
 router.put('/:id', [
-  body('lenderName')
-    .optional()
-    .trim()
-    .isLength({ min: 1, max: 100 })
-    .withMessage('Lender name must be between 1 and 100 characters'),
-  body('amount')
-    .optional()
-    .isFloat({ min: 0.01 })
-    .withMessage('Amount must be greater than 0'),
-  body('date')
-    .optional()
-    .isISO8601()
-    .toDate()
-    .withMessage('Please provide a valid date'),
-  body('notes')
-    .optional()
-    .trim()
-    .isLength({ max: 500 })
-    .withMessage('Notes cannot exceed 500 characters'),
-  body('isRepaid')
-    .optional()
-    .isBoolean()
-    .withMessage('isRepaid must be a boolean'),
-  body('repaidDate')
-    .optional()
-    .isISO8601()
-    .toDate()
-    .withMessage('Please provide a valid repaid date')
+    body('amount').optional().isFloat({ min: 0.01 }),
+    body('date').optional().isISO8601().toDate(),
+    body('isRepaid').optional().isBoolean(),
+    body('repaidDate').optional().isISO8601().toDate()
 ], handleValidationErrors, async (req, res) => {
   try {
-    const updateData = req.body;
+    const docRef = db.collection('borrowings').doc(req.params.id);
+    const doc = await docRef.get();
+    if (!doc.exists || doc.data().userId !== req.user.uid) return res.status(404).json({ message: 'Borrowing not found' });
 
-    // If marking as repaid and no repaidDate provided, set to current date
-    if (updateData.isRepaid === true && !updateData.repaidDate) {
-      updateData.repaidDate = new Date();
+    const updates = { ...req.body };
+    if (updates.date) updates.date = admin.firestore.Timestamp.fromDate(new Date(updates.date));
+    if (updates.repaidDate) updates.repaidDate = admin.firestore.Timestamp.fromDate(new Date(updates.repaidDate));
+
+    if (updates.isRepaid === true && !updates.repaidDate) {
+        updates.repaidDate = admin.firestore.Timestamp.now();
+    }
+    if (updates.isRepaid === false) {
+        updates.repaidDate = null;
     }
 
-    // If marking as not repaid, remove repaidDate
-    if (updateData.isRepaid === false) {
-      updateData.repaidDate = null;
+    await docRef.update(updates);
+    const updatedDoc = await docRef.get();
+    const data = updatedDoc.data();
+    if(data.date) data.date = data.date.toDate();
+    if(data.repaidDate) data.repaidDate = data.repaidDate.toDate();
+    
+    // Populate budget (simplified)
+    const budgetDoc = await db.collection('budgets').doc(data.budgetId).get();
+    let budgetData = data.budgetId;
+    if(budgetDoc.exists) {
+         const b = budgetDoc.data();
+         budgetData = { id: budgetDoc.id, year: b.year, monthNumber: b.monthNumber };
     }
 
-    const borrowing = await Borrowing.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user.userId },
-      updateData,
-      { new: true, runValidators: true }
-    ).populate('budgetId', 'year monthNumber monthName');
-
-    if (!borrowing) {
-      return res.status(404).json({
-        message: 'Borrowing not found'
-      });
-    }
-
-    res.json({
-      message: 'Borrowing updated successfully',
-      borrowing
-    });
+    res.json({ message: 'Borrowing updated successfully', borrowing: { id: updatedDoc.id, ...data, budgetId: budgetData } });
   } catch (error) {
     console.error('Update borrowing error:', error);
-    res.status(500).json({
-      message: 'Error updating borrowing'
-    });
+    res.status(500).json({ message: 'Error updating borrowing' });
   }
 });
 
 // @route   DELETE /api/borrowings/:id
-// @desc    Delete borrowing
-// @access  Private
 router.delete('/:id', async (req, res) => {
   try {
-    const borrowing = await Borrowing.findOneAndDelete({
-      _id: req.params.id,
-      userId: req.user.userId
-    });
-
-    if (!borrowing) {
-      return res.status(404).json({
-        message: 'Borrowing not found'
-      });
-    }
-
-    res.json({
-      message: 'Borrowing deleted successfully'
-    });
+    const docRef = db.collection('borrowings').doc(req.params.id);
+    const doc = await docRef.get();
+    if (!doc.exists || doc.data().userId !== req.user.uid) return res.status(404).json({ message: 'Borrowing not found' });
+    
+    await docRef.delete();
+    res.json({ message: 'Borrowing deleted successfully' });
   } catch (error) {
     console.error('Delete borrowing error:', error);
-    res.status(500).json({
-      message: 'Error deleting borrowing'
-    });
+    res.status(500).json({ message: 'Error deleting borrowing' });
   }
 });
 
 // @route   PUT /api/borrowings/:id/repay
-// @desc    Mark borrowing as repaid and create expense transaction
-// @access  Private
 router.put('/:id/repay', async (req, res) => {
-  try {
-    const borrowing = await Borrowing.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user.userId },
-      { 
-        isRepaid: true, 
-        repaidDate: new Date() 
-      },
-      { new: true, runValidators: true }
-    ).populate('budgetId', 'year monthNumber monthName');
-
-    if (!borrowing) {
-      return res.status(404).json({
-        message: 'Borrowing not found'
-      });
-    }
-
-    // Automatically create an expense for the repayment
     try {
-      const repaymentExpense = new Expense({
-        userId: req.user.userId,
-        budgetId: borrowing.budgetId._id,
-        name: `Loan Repayment to ${borrowing.lenderName}`,
-        category: 'Bills & Utilities',
-        amount: borrowing.amount,
-        date: new Date(),
-        notes: `Automatic expense for repaying loan to ${borrowing.lenderName}`
-      });
+        const docRef = db.collection('borrowings').doc(req.params.id);
+        const doc = await docRef.get();
+        if (!doc.exists || doc.data().userId !== req.user.uid) return res.status(404).json({ message: 'Borrowing not found' });
+        
+        const borrowing = doc.data();
+        
+        await docRef.update({
+            isRepaid: true,
+            repaidDate: admin.firestore.Timestamp.now()
+        });
 
-      await repaymentExpense.save();
-      console.log(`Auto-created expense for borrowing repayment: ₹${borrowing.amount} to ${borrowing.lenderName}`);
-    } catch (expenseError) {
-      console.error('Error creating automatic expense for borrowing repayment:', expenseError);
-      // Continue with success response even if expense creation fails
+        const updatedDoc = await docRef.get();
+        const data = updatedDoc.data();
+        if(data.date) data.date = data.date.toDate();
+        if(data.repaidDate) data.repaidDate = data.repaidDate.toDate();
+
+        // Populate budget
+        const budgetDoc = await db.collection('budgets').doc(data.budgetId).get();
+        let budgetData = data.budgetId;
+        if(budgetDoc.exists) {
+            const b = budgetDoc.data();
+            budgetData = { id: budgetDoc.id, year: b.year, monthNumber: b.monthNumber };
+        }
+
+        // Automatic expense creation
+        try {
+            const repaymentExpense = {
+                userId: req.user.uid,
+                budgetId: data.budgetId,
+                name: `Loan Repayment to ${borrowing.lenderName}`,
+                category: 'Bills & Utilities',
+                amount: borrowing.amount,
+                date: admin.firestore.Timestamp.now(),
+                notes: `Automatic expense for repaying loan to ${borrowing.lenderName}`,
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            };
+            await db.collection('expenses').add(repaymentExpense);
+            console.log(`Auto-created expense for repayment`);
+        } catch (e) {
+            console.error('Error creating auto-expense', e);
+        }
+
+        res.json({ message: 'Borrowing marked as repaid and expense created', borrowing: { id: updatedDoc.id, ...data, budgetId: budgetData } });
+
+    } catch(error) {
+        console.error('Repay error', error);
+        res.status(500).json({ message: 'Error marking repaid' });
     }
-
-    res.json({
-      message: 'Borrowing marked as repaid and expense created',
-      borrowing
-    });
-  } catch (error) {
-    console.error('Repay borrowing error:', error);
-    res.status(500).json({
-      message: 'Error marking borrowing as repaid'
-    });
-  }
 });
 
 module.exports = router;

@@ -1,92 +1,103 @@
 import React, { useState, useEffect } from 'react';
 import { AuthContext } from './contexts';
-import { authService } from '../services';
+import { auth, googleProvider } from '../firebase';
+import {
+  signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  updateProfile
+} from 'firebase/auth';
+import api from '../services/api';
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [token, setToken] = useState(localStorage.getItem('token'));
 
   useEffect(() => {
-    const initAuth = async () => {
-      try {
-        const storedToken = authService.getStoredToken();
-        const storedUser = authService.getStoredUser();
-        
-        if (storedToken && storedUser) {
-          // If we have both token and user data, set them immediately
-          setUser(storedUser);
-          setToken(storedToken);
-          
-          // Then verify the token is still valid in the background
-          try {
-            const userData = await authService.getCurrentUser();
-            // Update user data if token is valid
-            setUser(userData.user);
-          } catch (error) {
-            // Token is invalid, clear everything
-            console.error('Token validation failed:', error);
-            authService.logout();
-            setUser(null);
-            setToken(null);
-          }
-        } else if (storedToken) {
-          // Try to get current user info with the token
-          try {
-            const userData = await authService.getCurrentUser();
-            setUser(userData.user);
-            setToken(storedToken);
-          } catch (error) {
-            console.error('Auth initialization error:', error);
-            authService.logout();
-            setUser(null);
-            setToken(null);
-          }
-        } else {
-          // No token, clear any stale user data
-          setUser(null);
-          setToken(null);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        // Sync user with backend/database
+        try {
+          // We get the token to ensure the interceptor has it (though it gets it dynamically)
+          // Call backend sync endpoint
+          const token = await firebaseUser.getIdToken();
+          const { displayName, email, photoURL, uid } = firebaseUser;
+
+          // We can optimistic update the state
+          setUser({
+            id: uid,
+            name: displayName || email.split('@')[0],
+            email,
+            picture: photoURL
+          });
+
+          // Sync with backend
+          await api.post('/auth/sync'); // The interceptor attaches the token
+
+        } catch (error) {
+          console.error('Error syncing user with backend:', error);
         }
-      } catch (error) {
-        console.error('Auth initialization error:', error);
-        authService.logout();
+      } else {
         setUser(null);
-        setToken(null);
-      } finally {
-        setLoading(false);
       }
-    };
+      setLoading(false);
+    });
 
-    initAuth();
-  }, []); // Remove token dependency to avoid infinite loops
+    return unsubscribe;
+  }, []);
 
-  const login = async (credentials) => {
-    const response = await authService.login(credentials);
-    setUser(response.user);
-    setToken(response.token);
-    return response;
+  const loginWithGoogle = async () => {
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      return result.user;
+    } catch (error) {
+      console.error('Google login error:', error);
+      throw error;
+    }
   };
 
-  const register = async (userData) => {
-    const response = await authService.register(userData);
-    setUser(response.user);
-    setToken(response.token);
-    return response;
+  const loginWithEmail = async (email, password) => {
+    try {
+      const result = await signInWithEmailAndPassword(auth, email, password);
+      return result.user;
+    } catch (error) {
+      console.error('Email login error:', error);
+      throw error;
+    }
   };
 
-  const logout = () => {
-    authService.logout();
-    setUser(null);
-    setToken(null);
+  const register = async (email, password, name) => {
+    try {
+      const result = await createUserWithEmailAndPassword(auth, email, password);
+      await updateProfile(result.user, {
+        displayName: name
+      });
+      return result.user;
+    } catch (error) {
+      console.error('Registration error:', error);
+      throw error;
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await signOut(auth);
+      // State updates automatically via onAuthStateChanged
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
 
   const value = {
     user,
-    login,
+    loginWithGoogle,
+    loginWithEmail,
     register,
     logout,
     loading,
-    isAuthenticated: !!user && !!token
+    isAuthenticated: !!user
   };
 
   return (
